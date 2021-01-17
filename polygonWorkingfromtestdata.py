@@ -24,7 +24,7 @@ from sqlalchemy import event
 from dotenv import load_dotenv
 
 load_dotenv()
-desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+# desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
 now = datetime.now()
 now = now.strftime("%m %d %Y")
 
@@ -180,7 +180,7 @@ def pullrecentrawfromdb(numrecordpulled):
     return pd.DataFrame(data,columns=['d','o','h','l','c','n']).sort_values(by='d', ascending=True)
 
 #####################################
-rstring = currdir + '\Book1.xlsx'
+rstring = currdir + '//Book1.xlsx'
 excel = pd.read_excel(rstring)
 df = pd.DataFrame(excel)
 df = df.reset_index(drop=True)
@@ -192,7 +192,7 @@ savecalctodb(df1)
 ######################################
 
 
-rstring = currdir + '\Book2.xlsx'
+rstring = currdir + '//Book2.xlsx'
 excel = pd.read_excel(rstring)
 df = pd.DataFrame(excel)
 df = df.reset_index(drop=True)
@@ -205,7 +205,7 @@ savecalctodb(df1.tail(dflen))
 ######################################
 
 
-rstring = currdir + '\Book3.xlsx'
+rstring = currdir + '//Book3.xlsx'
 excel = pd.read_excel(rstring)
 df = pd.DataFrame(excel)
 df = df.reset_index(drop=True)
@@ -217,7 +217,7 @@ savecalctodb(df1.tail(dflen))
 
 ######################################
 
-rstring = currdir + '\Book4.xlsx'
+rstring = currdir + '//Book4.xlsx'
 excel = pd.read_excel(rstring)
 df = pd.DataFrame(excel)
 df = df.reset_index(drop=True)
