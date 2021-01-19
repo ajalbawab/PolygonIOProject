@@ -6,14 +6,9 @@ import sched
 import sqlite3
 import time
 from datetime import datetime
-# from typing import List
-# import msvcrt
-# import keyboard
 import numpy as np
 import pandas as pd
-# import matplotlib.pyplot as plt
-# import matplotlib
-# from polygon import STOCKS_CLUSTER, WebSocketClient
+from polygon import STOCKS_CLUSTER, WebSocketClient, RESTClient
 # import pandas_ta as ta
 import openpyxl
 import mariadb
