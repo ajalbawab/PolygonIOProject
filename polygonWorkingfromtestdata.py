@@ -3,13 +3,16 @@ import os
 import select
 import sys
 import sched
+import msvcrt
 import sqlite3
 import time
 from datetime import datetime
 import numpy as np
 import pandas as pd
+from typing import List
 from polygon import STOCKS_CLUSTER, WebSocketClient, RESTClient
 # import pandas_ta as ta
+import threading
 import openpyxl
 import mariadb
 import sqlalchemy
@@ -22,13 +25,27 @@ load_dotenv()
 # desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
 now = datetime.now()
 now = now.strftime("%m %d %Y")
-
+ticker = "MSFT"
 rsi_period = 14
 
 
 currdir = os.path.dirname(os.path.realpath(__file__))
 print(os.path.dirname(os.path.realpath(__file__)))
 
+
+
+def my_custom_process_message(messages: List[str]):
+    
+    """
+        Custom processing function for incoming streaming messages.
+    """
+    
+    def add_message_to_list(message):
+        """
+            Simple function that parses dict objects from incoming message.
+        """
+        messages.append(ast.literal_eval(message))
+    return add_message_to_list
 
 
 
@@ -170,19 +187,167 @@ def pullrecentrawfromdb(numrecordpulled):
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM currentdayraw order by d DESC LIMIT {}".format(numrecordpulled)) 
+    cursor.execute("SELECT * FROM currentdayraw order by s DESC LIMIT {}".format(numrecordpulled)) 
     data = cursor.fetchall ()
-    return pd.DataFrame(data,columns=['d','o','h','l','c','n']).sort_values(by='d', ascending=True)
+    return pd.DataFrame(data,columns=['s','o','h','l','c','sym']).sort_values(by='s', ascending=True)
+
+
+
+line1 = []
+line2 = []
+key = os.getenv("APIKey")
+messages = []
+
+
+my_client = WebSocketClient(STOCKS_CLUSTER, key, my_custom_process_message(messages))
+my_client.run_async()
+my_client.subscribe("A.{}".format(ticker)) 
+
+global xstop
+xstop = 0
+
+
+def tradelogger():
+
+
+    while len(messages) < 4: # 4 will give you one trade, 35 will give you 29 trades
+        pass
+
+
+
+
+    df = pd.DataFrame(messages[:], columns=['data'])
+    df = df.iloc[3:, 0].to_frame()
+    df = pd.json_normalize(df["data"].astype("str").apply(lambda x : dict(eval(x))))
+    print(df)
+
+
+    df = df[['s','o','h','l','c','sym']]
+    df['s'] = pd.to_datetime(df['s'], unit='ms')
+
+    saveprecalctodb(df)
+
+
+    while True:
+
+        while len(df) < 29:
+            i = len(df)
+            time.sleep(1.5)
+
+
+            lastmessage = messages[3+i:]
+            df1 = pd.DataFrame(lastmessage, columns=['data'])
+            df1 = df1.iloc[0:, 0].to_frame()
+            df1 = pd.json_normalize(df1["data"].astype("str").apply(lambda x : dict(eval(x))))
+            try:
+                df1 = df1[['s','o','h','l','c','sym']]
+                df1['s'] = pd.to_datetime(df1['s'], unit='ms')
+                saveprecalctodb(df1)
+            except:
+                pass
+
+
+
+            df = df.append(df1)
+
+        print("Start calculating")
+
+
+        data = pullrecentrawfromdb(len(df))
+        df2 = domath(data)
+        savecalctodb(df2)
+        ajint = 0
+        xstop = 0
+        while len(df) > 28:
+            print("press \ to cancel loop")
+            if msvcrt.kbhit():
+                if msvcrt.getwche() == '\\':
+                    xstop = 1
+            if xstop == 1:
+                print('BROKEN')
+                break
+            i = len(df)  # 29
+            time.sleep(4)
+
+            lastmessage = messages[3+i:]
+            print(len(lastmessage))
+
+            if len(lastmessage) > 0:
+                ##### Changing to DF\\\
+                df2 = pd.DataFrame(lastmessage, columns=['data'])
+                df2 = df2.iloc[0:, 0].to_frame()
+                df2 = pd.json_normalize(df2["data"].astype("str").apply(lambda x : dict(eval(x))))
+                df2 = df2[['s','o','h','l','c','sym']]
+                df2['s'] = pd.to_datetime(df2['s'], unit='ms')
+                dflen = len(df2)
+                saveprecalctodb(df2)
+
+                data5 = pullrecentrawfromdb(dflen+29)
+                df5 = domath(data5)
+                savecalctodb(df5.tail(dflen))
+                df = df.append(df2)
+            else:
+                print('no new messages')
+        if xstop == 1:
+            print('BROKEN')
+            break
+
+
+
+
+
+t1 = threading.Thread(target=tradelogger)
+# t2 = threading.Thread(target=tradecalc)
+t1.start()
+t1.join()
+
+print('cancelled loop')
+exit(1)
+
+try:
+    global conn
+    conn = mariadb.connect(
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
+        port=int(os.getenv("DB_PORT")),
+        database=os.getenv("DB_DB")
+    )
+except mariadb.Error as e:
+    print(f"Error connecting to MariaDB Platform: {e}")
+    sys.exit(1)
+cursor = conn.cursor()
+cursor.execute("SELECT * FROM currentdaycalc") 
+data = cursor.fetchall ()
+print(data)
+# dataoutput = pd.DataFrame(data).sort_values(by='d', ascending=True)
+# dataoutput.to_csv(desktop + "/testing.csv")
+exit()
+
+df1 = df1.reset_index(drop=True)
+
+
+
+
+
+
+
+
+### Old Code
+""""
+
+
 
 #####################################
-rstring = currdir + '//Book1.xlsx'
-excel = pd.read_excel(rstring)
-df = pd.DataFrame(excel)
-df = df.reset_index(drop=True)
+# rstring = currdir + '//Book1.xlsx'
+# excel = pd.read_excel(rstring)
+# df = pd.DataFrame(excel)
+# df = df.reset_index(drop=True)
 saveprecalctodb(df)
-data = pullrecentrawfromdb(29)
-df1 = domath(data)
-savecalctodb(df1)
+
+# data = pullrecentrawfromdb(29)
+# df1 = domath(data)
+# savecalctodb(df1)
 
 ######################################
 
@@ -221,22 +386,14 @@ saveprecalctodb(df)
 data = pullrecentrawfromdb(dflen+29)
 df1 = domath(data)
 savecalctodb(df1.tail(dflen))
+"""
 
-try:
-    global conn
-    conn = mariadb.connect(
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        host=os.getenv("DB_HOST"),
-        port=int(os.getenv("DB_PORT")),
-        database=os.getenv("DB_DB")
-    )
-except mariadb.Error as e:
-    print(f"Error connecting to MariaDB Platform: {e}")
-    sys.exit(1)
-cursor = conn.cursor()
-cursor.execute("SELECT * FROM currentdaycalc") 
-data = cursor.fetchall ()
-print(data)
-# dataoutput = pd.DataFrame(data).sort_values(by='d', ascending=True)
-# dataoutput.to_csv(desktop + "/testing.csv")
+
+
+
+
+
+
+
+
+
