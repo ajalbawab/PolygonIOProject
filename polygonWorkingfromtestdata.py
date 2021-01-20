@@ -22,7 +22,29 @@ from sqlalchemy import event
 from dotenv import load_dotenv
 
 load_dotenv()
-# desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+
+
+
+
+macorwin = input("""Are you on Mac or Windows? Reply (M/W)?
+""")
+while True:
+    
+    if macorwin.lower() == 'm' or macorwin.lower() == 'w':
+       break
+    else:
+        pass
+    macorwin = input("""Please try again.
+""")
+
+
+
+if macorwin == 'w':
+    desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+
+if macorwin == 'm':
+    desktop = os.path.join(os.path.join(os.path.expanduser('~')), 'Desktop') 
+
 now = datetime.now()
 now = now.strftime("%m %d %Y")
 ticker = "MSFT"
@@ -30,8 +52,6 @@ rsi_period = 14
 
 
 currdir = os.path.dirname(os.path.realpath(__file__))
-print(os.path.dirname(os.path.realpath(__file__)))
-
 
 
 def my_custom_process_message(messages: List[str]):
@@ -47,11 +67,11 @@ def my_custom_process_message(messages: List[str]):
         messages.append(ast.literal_eval(message))
     return add_message_to_list
 
-
+engine = sqlalchemy.create_engine("mariadb+mariadbconnector://{}:{}@{}:{}/{}".format(str(os.getenv("DB_USER")),str(os.getenv("DB_PASSWORD")),str(os.getenv("DB_HOST")),str(os.getenv("DB_PORT")),str(os.getenv("DB_DB"))))
 
 
 def saveprecalctodb(df):
-    engine = sqlalchemy.create_engine("mariadb+mariadbconnector://{}:{}@{}:{}/{}".format(str(os.getenv("DB_USER")),str(os.getenv("DB_PASSWORD")),str(os.getenv("DB_HOST")),str(os.getenv("DB_PORT")),str(os.getenv("DB_DB"))))
+
     @event.listens_for(engine, "before_cursor_execute")
     def receive_before_cursor_execute(
         conn, cursor, statement, params, context, executemany
@@ -62,12 +82,13 @@ def saveprecalctodb(df):
 
     try:
         df.to_sql("currentdayraw", engine, index=False, if_exists="append", schema=None)
+
     except Exception as e:
         print(e)
         pass
 
 def savecalctodb(df1):
-    engine = sqlalchemy.create_engine("mariadb+mariadbconnector://{}:{}@{}:{}/{}".format(str(os.getenv("DB_USER")),str(os.getenv("DB_PASSWORD")),str(os.getenv("DB_HOST")),str(os.getenv("DB_PORT")),str(os.getenv("DB_DB"))))
+    # engine = sqlalchemy.create_engine("mariadb+mariadbconnector://{}:{}@{}:{}/{}".format(str(os.getenv("DB_USER")),str(os.getenv("DB_PASSWORD")),str(os.getenv("DB_HOST")),str(os.getenv("DB_PORT")),str(os.getenv("DB_DB"))))
     
     @event.listens_for(engine, "before_cursor_execute")
     def receive_before_cursor_execute(
@@ -78,12 +99,14 @@ def savecalctodb(df1):
                     # cursor.fast_executemany = True
     try:
         df1.to_sql("currentdaycalc", engine, index=False, if_exists="append", schema=None)
+        
     except Exception as e:
         print(e)
         pass
 
 
 def domath(df):
+
     df1 = df.reset_index(drop=True)
     yclose = df1['c'].shift(1)
     yhigh = df1['h'].shift(1)
@@ -102,7 +125,17 @@ def domath(df):
     average_gain = gain.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
     average_loss = loss.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
     df1['RSI'] = 100 - (100/(1+(average_gain / average_loss)))
-
+    
+    ####### Add Bolinger Bands
+    sma = df1['c'].rolling(window=20).mean()
+    rstd = df1['c'].rolling(window=20).std()  
+    
+    upper_band = sma + 2 * rstd
+    upper_band = upper_band.rename('BBandUp')
+    lower_band = sma - 2 * rstd
+    lower_band = lower_band.rename('BBandDown')
+    sma = sma.rename('BBandBasis')
+    df1 = df1.join(upper_band).join(lower_band).join(sma)
 
     x = df1['h'] - df1['l']
     y = abs(df1['h'] - yclose)
@@ -122,7 +155,7 @@ def domath(df):
 
 
 
-    df1['RSIOVERLINE'] = np.where((df1['RSI'] <= 30) | (df1['RSI'] >= 70), True, False)
+    df1['RSIOVERLINE'] = np.where((df1['RSI'] <= 30), 1, np.where((df1['RSI'] >= 70), 2, 0))
 
 
 
@@ -162,15 +195,18 @@ def domath(df):
     df1['ADX'] = df1['DX']
 
 
+    df1.loc[:27,'ADX'] = np.nan
 
-    df1['ADX'].iloc[0:27] = np.nan
-    df1['ADX'].iloc[27:28] = df1['DX'].iloc[14:28].mean()
 
+
+
+    df1.loc[27:28,'ADX'] = df1.loc[14:28,'DX'].mean()
+    
     for i in range(28,len(df)):
         prevx = df1['ADX'].iloc[i-1:i].values[0]
         nowx = df1['ADX'].iloc[i:i+1].values[0]
         nowtr = df1['DX'].iloc[i:i+1].values[0]
-        df1['ADX'].iloc[i:i+1] = (((prevx*13) + nowtr) / 14)
+        df1.loc[i:i+1,'ADX'] = (((prevx*13) + nowtr) / 14)
     return df1
 
 def pullrecentrawfromdb(numrecordpulled):
@@ -189,6 +225,7 @@ def pullrecentrawfromdb(numrecordpulled):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM currentdayraw order by s DESC LIMIT {}".format(numrecordpulled)) 
     data = cursor.fetchall ()
+    conn.close()
     return pd.DataFrame(data,columns=['s','o','h','l','c','sym']).sort_values(by='s', ascending=True)
 
 
@@ -209,8 +246,8 @@ xstop = 0
 
 def tradelogger():
 
-
-    while len(messages) < 4: # 4 will give you one trade, 35 will give you 29 trades
+    print('Initializing...')
+    while len(messages) < 4: # 4 will give you one trade, 35 will give you 29 trades. The first 3 lines when the connection is established, is the meta data for the connection.
         pass
 
 
@@ -219,7 +256,7 @@ def tradelogger():
     df = pd.DataFrame(messages[:], columns=['data'])
     df = df.iloc[3:, 0].to_frame()
     df = pd.json_normalize(df["data"].astype("str").apply(lambda x : dict(eval(x))))
-    print(df)
+
 
 
     df = df[['s','o','h','l','c','sym']]
@@ -250,27 +287,30 @@ def tradelogger():
 
             df = df.append(df1)
 
-        print("Start calculating")
-
+        print("""
+Initializing Done.. Now Calculating and Saving to Database
+        """)
 
         data = pullrecentrawfromdb(len(df))
+ 
+
         df2 = domath(data)
+
         savecalctodb(df2)
         ajint = 0
         xstop = 0
+        print("Storing Stock Data.. Press \ To Cancel Loop")
         while len(df) > 28:
-            print("press \ to cancel loop")
+        
             if msvcrt.kbhit():
                 if msvcrt.getwche() == '\\':
                     xstop = 1
             if xstop == 1:
-                print('BROKEN')
                 break
             i = len(df)  # 29
-            time.sleep(4)
+            time.sleep(1)
 
             lastmessage = messages[3+i:]
-            print(len(lastmessage))
 
             if len(lastmessage) > 0:
                 ##### Changing to DF\\\
@@ -280,16 +320,16 @@ def tradelogger():
                 df2 = df2[['s','o','h','l','c','sym']]
                 df2['s'] = pd.to_datetime(df2['s'], unit='ms')
                 dflen = len(df2)
-                saveprecalctodb(df2)
 
+                saveprecalctodb(df2)
                 data5 = pullrecentrawfromdb(dflen+29)
                 df5 = domath(data5)
                 savecalctodb(df5.tail(dflen))
                 df = df.append(df2)
             else:
-                print('no new messages')
+                pass
         if xstop == 1:
-            print('BROKEN')
+            print('Loop Stopped')
             break
 
 
@@ -301,8 +341,7 @@ t1 = threading.Thread(target=tradelogger)
 t1.start()
 t1.join()
 
-print('cancelled loop')
-exit(1)
+print('...saving current Calculations to Desktop')
 
 try:
     global conn
@@ -319,12 +358,15 @@ except mariadb.Error as e:
 cursor = conn.cursor()
 cursor.execute("SELECT * FROM currentdaycalc") 
 data = cursor.fetchall ()
-print(data)
-# dataoutput = pd.DataFrame(data).sort_values(by='d', ascending=True)
-# dataoutput.to_csv(desktop + "/testing.csv")
-exit()
 
-df1 = df1.reset_index(drop=True)
+
+data = pd.DataFrame(data, columns=['s','o','h','l','c','sym','EMA12','EMA26','MACD','Sig9','Diff','RSI','BBandUp','BBandDown','BBandBasis','ATR','RSIOVERLINE','PDI14','NDI14','DI14Diff','DI14Sum','DX','ADX'])
+
+dataoutput = data.sort_values(by='s', ascending=True)
+dataoutput.to_csv(desktop + "/testing.csv")
+
+
+
 
 
 
