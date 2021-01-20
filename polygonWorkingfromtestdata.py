@@ -105,6 +105,297 @@ def savecalctodb(df1):
         pass
 
 
+def tradecalc1(lenofmessages):
+    data = pullrecentrawfromdb(lenofmessages)
+    df = data
+
+    
+    df1 = df.reset_index(drop=True)
+    yclose = df1['c'].shift(1)
+    yhigh = df1['h'].shift(1)
+    ylow = df1['l'].shift(1)
+    ema12 = df1['c'].ewm(span=12,adjust=False).mean()
+    ema26 = df1['c'].ewm(span=26,adjust=False).mean()
+    df1['EMA12'] = np.round(ema12, decimals=3)
+    df1['EMA26'] = np.round(ema26, decimals=3)
+    df1['MACD'] = df1['EMA12'] - df1['EMA26']
+    ema9 = df1['MACD'].ewm(span=9,adjust=False).mean()
+    df1['Sig9'] = np.round(ema9, decimals=3)
+    df1['Diff'] = df1['MACD'] - df1['Sig9']
+    difference = df1['c'].diff().fillna(0)
+    gain = difference.mask(difference<0,0).abs()
+    loss = difference.mask(difference>0,0).abs()
+    average_gain = gain.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
+    average_loss = loss.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
+    df1['RSI'] = 100 - (100/(1+(average_gain / average_loss)))
+    
+    ####### Add Bolinger Bands
+    sma = df1['c'].rolling(window=20).mean()
+    rstd = df1['c'].rolling(window=20).std()  
+    
+    upper_band = sma + 2 * rstd
+    upper_band = upper_band.rename('BBandUp')
+    lower_band = sma - 2 * rstd
+    lower_band = lower_band.rename('BBandDown')
+    sma = sma.rename('BBandBasis')
+    df1 = df1.join(upper_band).join(lower_band).join(sma)
+
+    x = df1['h'] - df1['l']
+    y = abs(df1['h'] - yclose)
+    z = abs(df1['l'] - yclose)
+
+    tr = pd.Series(np.where((y <= x) & (x >= z), x, np.where((x <= y) & (y >= z), y, np.where((x <= z) & (z >= y), z, np.nan))))
+
+    df1['ATR'] = tr.ewm(span=14,adjust=False).mean()
+
+
+    moveUp = df1['h'] - yhigh
+    moveDown = ylow - df1['l']
+
+
+    pdm = pd.Series(np.where((0 < moveUp) & (moveUp > moveDown), moveUp, 0))
+    ndm = pd.Series(np.where((0 < moveDown) & (moveDown > moveUp), moveDown, 0))
+
+
+
+    df1['RSIOVERLINE'] = np.where((df1['RSI'] <= 30), 1, np.where((df1['RSI'] >= 70), 2, 0))
+
+
+
+    tr14 = tr
+    pdmi14 = pdm
+    ndmi14 = ndm
+    tr14.iloc[14:15] = tr.iloc[0:15].sum()
+    pdmi14.iloc[14:15] = pdm.iloc[0:15].sum()
+    ndmi14.iloc[14:15] = ndm.iloc[0:15].sum()
+
+
+    tr14.iloc[0:14] = np.nan
+
+
+    for i in range(15,len(df)):
+        prevx = pdmi14.iloc[i-1:i].values[0]
+        nowx = pdmi14.iloc[i:i+1].values[0]
+        nowtr = pdm.iloc[i:i+1].values[0]
+        pdmi14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
+        prevx = ndmi14.iloc[i-1:i].values[0]
+        nowx = ndmi14.iloc[i:i+1].values[0]
+        nowtr = ndm.iloc[i:i+1].values[0]
+        ndmi14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
+        prevx = tr14.iloc[i-1:i].values[0]
+        nowx = tr14.iloc[i:i+1].values[0]
+        nowtr = tr.iloc[i:i+1].values[0]
+        tr14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
+
+    df1['PDI14'] = (pdmi14/tr14*100)
+    df1['NDI14'] = (ndmi14/tr14*100)
+    
+
+
+
+    df1['DI14Diff'] = abs(df1['PDI14']-df1['NDI14'])
+    df1['DI14Sum'] = df1['PDI14'] + df1['NDI14']
+
+    df1['DX'] = (df1['DI14Diff'] / df1['DI14Sum']*100)
+
+    df1['ADX'] = df1['DX']
+
+
+    df1.loc[:27,'ADX'] = np.nan
+
+
+
+
+    df1.loc[27:28,'ADX'] = df1.loc[14:28,'DX'].mean()
+    
+    for i in range(28,len(df)):
+        prevx = df1['ADX'].iloc[i-1:i].values[0]
+        nowx = df1['ADX'].iloc[i:i+1].values[0]
+        nowtr = df1['DX'].iloc[i:i+1].values[0]
+        df1.loc[i:i+1,'ADX'] = (((prevx*13) + nowtr) / 14)
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def receive_before_cursor_execute(
+        conn, cursor, statement, params, context, executemany
+            ):
+                if executemany:
+                    pass
+                    # cursor.fast_executemany = True
+    try:
+        df1.to_sql("currentdaycalc", engine, index=False, if_exists="append", schema=None)
+        
+    except Exception as e:
+        print(e)
+        pass
+
+
+
+    print(df1)
+
+def tradecalc2(lenofmessages):
+
+
+
+    data5 = pullrecentrawfromdb(lenofmessages+29)
+    
+
+
+
+
+
+
+
+
+    df = data5
+
+    
+    df1 = df.reset_index(drop=True)
+    yclose = df1['c'].shift(1)
+    yhigh = df1['h'].shift(1)
+    ylow = df1['l'].shift(1)
+    ema12 = df1['c'].ewm(span=12,adjust=False).mean()
+    ema26 = df1['c'].ewm(span=26,adjust=False).mean()
+    df1['EMA12'] = np.round(ema12, decimals=3)
+    df1['EMA26'] = np.round(ema26, decimals=3)
+    df1['MACD'] = df1['EMA12'] - df1['EMA26']
+    ema9 = df1['MACD'].ewm(span=9,adjust=False).mean()
+    df1['Sig9'] = np.round(ema9, decimals=3)
+    df1['Diff'] = df1['MACD'] - df1['Sig9']
+    difference = df1['c'].diff().fillna(0)
+    gain = difference.mask(difference<0,0).abs()
+    loss = difference.mask(difference>0,0).abs()
+    average_gain = gain.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
+    average_loss = loss.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
+    df1['RSI'] = 100 - (100/(1+(average_gain / average_loss)))
+    
+    ####### Add Bolinger Bands
+    sma = df1['c'].rolling(window=20).mean()
+    rstd = df1['c'].rolling(window=20).std()  
+    
+    upper_band = sma + 2 * rstd
+    upper_band = upper_band.rename('BBandUp')
+    lower_band = sma - 2 * rstd
+    lower_band = lower_band.rename('BBandDown')
+    sma = sma.rename('BBandBasis')
+    df1 = df1.join(upper_band).join(lower_band).join(sma)
+
+    x = df1['h'] - df1['l']
+    y = abs(df1['h'] - yclose)
+    z = abs(df1['l'] - yclose)
+
+    tr = pd.Series(np.where((y <= x) & (x >= z), x, np.where((x <= y) & (y >= z), y, np.where((x <= z) & (z >= y), z, np.nan))))
+
+    df1['ATR'] = tr.ewm(span=14,adjust=False).mean()
+
+
+    moveUp = df1['h'] - yhigh
+    moveDown = ylow - df1['l']
+
+
+    pdm = pd.Series(np.where((0 < moveUp) & (moveUp > moveDown), moveUp, 0))
+    ndm = pd.Series(np.where((0 < moveDown) & (moveDown > moveUp), moveDown, 0))
+
+
+
+    df1['RSIOVERLINE'] = np.where((df1['RSI'] <= 30), 1, np.where((df1['RSI'] >= 70), 2, 0))
+
+
+
+    tr14 = tr
+    pdmi14 = pdm
+    ndmi14 = ndm
+    tr14.iloc[14:15] = tr.iloc[0:15].sum()
+    pdmi14.iloc[14:15] = pdm.iloc[0:15].sum()
+    ndmi14.iloc[14:15] = ndm.iloc[0:15].sum()
+
+
+    tr14.iloc[0:14] = np.nan
+
+
+    for i in range(15,len(df)):
+        prevx = pdmi14.iloc[i-1:i].values[0]
+        nowx = pdmi14.iloc[i:i+1].values[0]
+        nowtr = pdm.iloc[i:i+1].values[0]
+        pdmi14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
+        prevx = ndmi14.iloc[i-1:i].values[0]
+        nowx = ndmi14.iloc[i:i+1].values[0]
+        nowtr = ndm.iloc[i:i+1].values[0]
+        ndmi14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
+        prevx = tr14.iloc[i-1:i].values[0]
+        nowx = tr14.iloc[i:i+1].values[0]
+        nowtr = tr.iloc[i:i+1].values[0]
+        tr14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
+
+    df1['PDI14'] = (pdmi14/tr14*100)
+    df1['NDI14'] = (ndmi14/tr14*100)
+    
+
+
+
+    df1['DI14Diff'] = abs(df1['PDI14']-df1['NDI14'])
+    df1['DI14Sum'] = df1['PDI14'] + df1['NDI14']
+
+    df1['DX'] = (df1['DI14Diff'] / df1['DI14Sum']*100)
+
+    df1['ADX'] = df1['DX']
+
+
+    df1.loc[:27,'ADX'] = np.nan
+
+
+
+
+    df1.loc[27:28,'ADX'] = df1.loc[14:28,'DX'].mean()
+    
+    for i in range(28,len(df)):
+        prevx = df1['ADX'].iloc[i-1:i].values[0]
+        nowx = df1['ADX'].iloc[i:i+1].values[0]
+        nowtr = df1['DX'].iloc[i:i+1].values[0]
+        df1.loc[i:i+1,'ADX'] = (((prevx*13) + nowtr) / 14)
+
+
+
+
+
+
+
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def receive_before_cursor_execute(
+        conn, cursor, statement, params, context, executemany
+            ):
+                if executemany:
+                    pass
+                    # cursor.fast_executemany = True
+    try:
+        df1.tail(lenofmessages).to_sql("currentdaycalc", engine, index=False, if_exists="append", schema=None)
+        
+    except Exception as e:
+        print(e)
+        pass
+
+
+    print(df1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def domath(df):
 
     df1 = df.reset_index(drop=True)
@@ -186,6 +477,9 @@ def domath(df):
 
     df1['PDI14'] = (pdmi14/tr14*100)
     df1['NDI14'] = (ndmi14/tr14*100)
+    
+
+
 
     df1['DI14Diff'] = abs(df1['PDI14']-df1['NDI14'])
     df1['DI14Sum'] = df1['PDI14'] + df1['NDI14']
@@ -229,7 +523,7 @@ def pullrecentrawfromdb(numrecordpulled):
     return pd.DataFrame(data,columns=['s','o','h','l','c','sym']).sort_values(by='s', ascending=True)
 
 
-
+threads = []
 line1 = []
 line2 = []
 key = os.getenv("APIKey")
@@ -290,13 +584,14 @@ def tradelogger():
         print("""
 Initializing Done.. Now Calculating and Saving to Database
         """)
-
-        data = pullrecentrawfromdb(len(df))
+        lenofmessages = len(df)
+        
  
+        process = threading.Thread(target=tradecalc1, args=[lenofmessages])
+        process.start()
+        threads.append(process)
+        process.join()
 
-        df2 = domath(data)
-
-        savecalctodb(df2)
         ajint = 0
         xstop = 0
         print("Storing Stock Data.. Press \ To Cancel Loop")
@@ -319,12 +614,19 @@ Initializing Done.. Now Calculating and Saving to Database
                 df2 = pd.json_normalize(df2["data"].astype("str").apply(lambda x : dict(eval(x))))
                 df2 = df2[['s','o','h','l','c','sym']]
                 df2['s'] = pd.to_datetime(df2['s'], unit='ms')
-                dflen = len(df2)
+                lenofmessages = len(df2)
+
+
+
+                    
+
 
                 saveprecalctodb(df2)
-                data5 = pullrecentrawfromdb(dflen+29)
-                df5 = domath(data5)
-                savecalctodb(df5.tail(dflen))
+                process = threading.Thread(target=tradecalc2, args=[lenofmessages])
+                process.start()
+                threads.append(process)
+                process.join()
+
                 df = df.append(df2)
             else:
                 pass
@@ -337,8 +639,8 @@ Initializing Done.. Now Calculating and Saving to Database
 
 
 t1 = threading.Thread(target=tradelogger)
-# t2 = threading.Thread(target=tradecalc)
 t1.start()
+threads.append(t1)
 t1.join()
 
 print('...saving current Calculations to Desktop')
@@ -363,79 +665,5 @@ data = cursor.fetchall ()
 data = pd.DataFrame(data, columns=['s','o','h','l','c','sym','EMA12','EMA26','MACD','Sig9','Diff','RSI','BBandUp','BBandDown','BBandBasis','ATR','RSIOVERLINE','PDI14','NDI14','DI14Diff','DI14Sum','DX','ADX'])
 
 dataoutput = data.sort_values(by='s', ascending=True)
-dataoutput.to_csv(desktop + "/testing.csv")
-
-
-
-
-
-
-
-
-
-
-
-### Old Code
-""""
-
-
-
-#####################################
-# rstring = currdir + '//Book1.xlsx'
-# excel = pd.read_excel(rstring)
-# df = pd.DataFrame(excel)
-# df = df.reset_index(drop=True)
-saveprecalctodb(df)
-
-# data = pullrecentrawfromdb(29)
-# df1 = domath(data)
-# savecalctodb(df1)
-
-######################################
-
-
-rstring = currdir + '//Book2.xlsx'
-excel = pd.read_excel(rstring)
-df = pd.DataFrame(excel)
-df = df.reset_index(drop=True)
-dflen = len(df)
-saveprecalctodb(df)
-data = pullrecentrawfromdb(dflen+29)
-df1 = domath(data)
-savecalctodb(df1.tail(dflen))
-
-######################################
-
-
-rstring = currdir + '//Book3.xlsx'
-excel = pd.read_excel(rstring)
-df = pd.DataFrame(excel)
-df = df.reset_index(drop=True)
-dflen = len(df)
-saveprecalctodb(df)
-data = pullrecentrawfromdb(dflen+29)
-df1 = domath(data)
-savecalctodb(df1.tail(dflen))
-
-######################################
-
-rstring = currdir + '//Book4.xlsx'
-excel = pd.read_excel(rstring)
-df = pd.DataFrame(excel)
-df = df.reset_index(drop=True)
-dflen = len(df)
-saveprecalctodb(df)
-data = pullrecentrawfromdb(dflen+29)
-df1 = domath(data)
-savecalctodb(df1.tail(dflen))
-"""
-
-
-
-
-
-
-
-
-
-
+dataoutput.to_csv(desktop + "/S1_Data.csv")
+exit()
