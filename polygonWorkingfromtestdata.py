@@ -366,25 +366,6 @@ def tradecalc2(lenofmessages,newmessages):
         pass
 
 
-    df1.to_csv(desktop + "/S1_Data After Calc.csv")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def domath(df):
@@ -651,7 +632,7 @@ cursor.execute("SELECT * FROM currentdaycalc")
 data = cursor.fetchall ()
 
 
-data = pd.DataFrame(data, columns=['s','o','h','l','c','sym','EMA12','EMA26','MACD','Sig9','Diff','RSI','BBandUp','BBandDown','BBandBasis','ATR','RSIOVERLINE','PDI14','NDI14','DI14Diff','DI14Sum','DX','ADX'])
+data = pd.DataFrame(data, columns=['s','o','h','l','c','sym','EMA12','EMA26','MACD','Sig9','Diff','RSI','BBandUp','BBandDown','BBandBasis','TR','ATR','RSIOVERLINE','TR14','PDMI14','NDMI14','PDI14','NDI14','DI14Diff','DI14Sum','DX','ADX'])
 
 dataoutput = data.sort_values(by='s', ascending=True)
 dataoutput.to_csv(desktop + "/S1_Data.csv")
