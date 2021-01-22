@@ -36,7 +36,7 @@ while True:
         pass
     macorwin = input("""Please try again.
 """)
-
+macorwin = 'w'
 
 
 if macorwin == 'w':
@@ -47,7 +47,7 @@ if macorwin == 'm':
 
 now = datetime.now()
 now = now.strftime("%m %d %Y")
-ticker = "MSFT"
+ticker = "XOM"
 rsi_period = 14
 
 
@@ -145,7 +145,7 @@ def tradecalc1(lenofmessages):
     z = abs(df1['l'] - yclose)
 
     tr = pd.Series(np.where((y <= x) & (x >= z), x, np.where((x <= y) & (y >= z), y, np.where((x <= z) & (z >= y), z, np.nan))))
-
+    df1['TR'] = tr
     df1['ATR'] = tr.ewm(span=14,adjust=False).mean()
 
 
@@ -186,7 +186,9 @@ def tradecalc1(lenofmessages):
         nowx = tr14.iloc[i:i+1].values[0]
         nowtr = tr.iloc[i:i+1].values[0]
         tr14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
-
+    df1['TR14'] = tr14
+    df1['PDMI14'] = pdmi14
+    df1['NDMI14'] = ndmi14
     df1['PDI14'] = (pdmi14/tr14*100)
     df1['NDI14'] = (ndmi14/tr14*100)
     
@@ -229,26 +231,31 @@ def tradecalc1(lenofmessages):
         pass
 
 
+def tradecalc2(lenofmessages,newmessages):
 
-    print(df1)
+    try:
+        global conn
+        conn = mariadb.connect(
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            port=int(os.getenv("DB_PORT")),
+            database=os.getenv("DB_DB")
+        )
+    except mariadb.Error as e:
+        print(f"Error connecting to MariaDB Platform: {e}")
+        sys.exit(1)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM currentdaycalc order by s DESC LIMIT {}".format((lenofmessages+29))) 
+    data = cursor.fetchall ()
+    conn.close()
+    df = pd.DataFrame(data,columns=['s', 'o', 'h', 'l', 'c', 'sym', 'EMA12', 'EMA26', 'MACD', 'Sig9',
+       'Diff', 'RSI', 'BBandUp', 'BBandDown', 'BBandBasis', 'TR', 'ATR',
+       'RSIOVERLINE', 'TR14', 'PDMI14', 'NDMI14', 'PDI14', 'NDI14', 'DI14Diff',
+       'DI14Sum', 'DX', 'ADX']).sort_values(by='s', ascending=True)
+    df = df.append(newmessages)
 
-def tradecalc2(lenofmessages):
 
-
-
-    data5 = pullrecentrawfromdb(lenofmessages+29)
-    
-
-
-
-
-
-
-
-
-    df = data5
-
-    
     df1 = df.reset_index(drop=True)
     yclose = df1['c'].shift(1)
     yhigh = df1['h'].shift(1)
@@ -267,7 +274,6 @@ def tradecalc2(lenofmessages):
     average_gain = gain.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
     average_loss = loss.ewm(com = rsi_period - 1,min_periods=rsi_period).mean()
     df1['RSI'] = 100 - (100/(1+(average_gain / average_loss)))
-    
     ####### Add Bolinger Bands
     sma = df1['c'].rolling(window=20).mean()
     rstd = df1['c'].rolling(window=20).std()  
@@ -277,7 +283,10 @@ def tradecalc2(lenofmessages):
     lower_band = sma - 2 * rstd
     lower_band = lower_band.rename('BBandDown')
     sma = sma.rename('BBandBasis')
-    df1 = df1.join(upper_band).join(lower_band).join(sma)
+    df1['BBandUp'] = upper_band
+    df1['BBandDown'] = lower_band
+    df1['BBandBasis'] = sma
+
 
     x = df1['h'] - df1['l']
     y = abs(df1['h'] - yclose)
@@ -295,39 +304,38 @@ def tradecalc2(lenofmessages):
     pdm = pd.Series(np.where((0 < moveUp) & (moveUp > moveDown), moveUp, 0))
     ndm = pd.Series(np.where((0 < moveDown) & (moveDown > moveUp), moveDown, 0))
 
-
+    df1['TR'] = tr
 
     df1['RSIOVERLINE'] = np.where((df1['RSI'] <= 30), 1, np.where((df1['RSI'] >= 70), 2, 0))
 
-
+  
 
     tr14 = tr
     pdmi14 = pdm
     ndmi14 = ndm
-    tr14.iloc[14:15] = tr.iloc[0:15].sum()
-    pdmi14.iloc[14:15] = pdm.iloc[0:15].sum()
-    ndmi14.iloc[14:15] = ndm.iloc[0:15].sum()
 
 
-    tr14.iloc[0:14] = np.nan
+    # print(tr14,pdmi14,ndmi14)
+    # print("before")
 
-
-    for i in range(15,len(df)):
-        prevx = pdmi14.iloc[i-1:i].values[0]
+    for i in range((len(df1)-lenofmessages),len(df1)):
+        prevx = df1['PDMI14'].iloc[i-1:i].values[0]
         nowx = pdmi14.iloc[i:i+1].values[0]
         nowtr = pdm.iloc[i:i+1].values[0]
-        pdmi14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
-        prevx = ndmi14.iloc[i-1:i].values[0]
+        df1.loc[i:i+1,'PDMI14'] = prevx - (prevx/14) + nowtr
+        prevx = df1['NDMI14'].iloc[i-1:i].values[0]
         nowx = ndmi14.iloc[i:i+1].values[0]
         nowtr = ndm.iloc[i:i+1].values[0]
-        ndmi14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
-        prevx = tr14.iloc[i-1:i].values[0]
+        df1.loc[i:i+1,'NDMI14'] = prevx - (prevx/14) + nowtr
+        prevx = df1['TR14'].iloc[i-1:i].values[0]
         nowx = tr14.iloc[i:i+1].values[0]
         nowtr = tr.iloc[i:i+1].values[0]
-        tr14.iloc[i:i+1] = prevx - (prevx/14) + nowtr
+        df1.loc[i:i+1,'TR14'] = prevx - (prevx/14) + nowtr
 
-    df1['PDI14'] = (pdmi14/tr14*100)
-    df1['NDI14'] = (ndmi14/tr14*100)
+    # print('after')
+
+    df1['PDI14'] = (df1['PDMI14']/df1['TR14']*100)
+    df1['NDI14'] = (df1['NDMI14']/df1['TR14']*100)
     
 
 
@@ -336,28 +344,11 @@ def tradecalc2(lenofmessages):
     df1['DI14Sum'] = df1['PDI14'] + df1['NDI14']
 
     df1['DX'] = (df1['DI14Diff'] / df1['DI14Sum']*100)
-
-    df1['ADX'] = df1['DX']
-
-
-    df1.loc[:27,'ADX'] = np.nan
-
-
-
-
-    df1.loc[27:28,'ADX'] = df1.loc[14:28,'DX'].mean()
-    
-    for i in range(28,len(df)):
+    for i in range((len(df1)-lenofmessages),len(df1)):
         prevx = df1['ADX'].iloc[i-1:i].values[0]
-        nowx = df1['ADX'].iloc[i:i+1].values[0]
+        nowx = df1['DX'].iloc[i:i+1].values[0]
         nowtr = df1['DX'].iloc[i:i+1].values[0]
         df1.loc[i:i+1,'ADX'] = (((prevx*13) + nowtr) / 14)
-
-
-
-
-
-
 
 
     @event.listens_for(engine, "before_cursor_execute")
@@ -375,7 +366,7 @@ def tradecalc2(lenofmessages):
         pass
 
 
-    print(df1)
+    df1.to_csv(desktop + "/S1_Data After Calc.csv")
 
 
 
@@ -603,31 +594,29 @@ Initializing Done.. Now Calculating and Saving to Database
             if xstop == 1:
                 break
             i = len(df)  # 29
-            time.sleep(1)
+            time.sleep(5)
 
             lastmessage = messages[3+i:]
 
             if len(lastmessage) > 0:
                 ##### Changing to DF\\\
-                df2 = pd.DataFrame(lastmessage, columns=['data'])
-                df2 = df2.iloc[0:, 0].to_frame()
-                df2 = pd.json_normalize(df2["data"].astype("str").apply(lambda x : dict(eval(x))))
-                df2 = df2[['s','o','h','l','c','sym']]
-                df2['s'] = pd.to_datetime(df2['s'], unit='ms')
-                lenofmessages = len(df2)
+                newmessages = pd.DataFrame(lastmessage, columns=['data'])
+                newmessages = newmessages.iloc[0:, 0].to_frame()
+                newmessages = pd.json_normalize(newmessages["data"].astype("str").apply(lambda x : dict(eval(x))))
+                newmessages = newmessages[['s','o','h','l','c','sym']]
+                newmessages['s'] = pd.to_datetime(newmessages['s'], unit='ms')
+                lenofmessages = len(newmessages)
+                saveprecalctodb(newmessages)
 
 
 
-                    
 
-
-                saveprecalctodb(df2)
-                process = threading.Thread(target=tradecalc2, args=[lenofmessages])
+                process = threading.Thread(target=tradecalc2, args=[lenofmessages, newmessages])
                 process.start()
                 threads.append(process)
                 process.join()
 
-                df = df.append(df2)
+                df = df.append(newmessages)
             else:
                 pass
         if xstop == 1:
@@ -636,7 +625,7 @@ Initializing Done.. Now Calculating and Saving to Database
 
 
 
-
+################################
 
 t1 = threading.Thread(target=tradelogger)
 t1.start()
