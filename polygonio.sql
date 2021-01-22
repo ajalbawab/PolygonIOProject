@@ -18,48 +18,60 @@ USE `networkeasy`;
 
 -- Dumping structure for table networkeasy.currentdaycalc
 CREATE TABLE IF NOT EXISTS `currentdaycalc` (
-  `d` datetime DEFAULT NULL,
+  `s` datetime DEFAULT NULL,
   `o` double DEFAULT NULL,
-  `c` double DEFAULT NULL,
-  `l` double DEFAULT NULL,
   `h` double DEFAULT NULL,
-  `n` varchar(50) DEFAULT NULL,
+  `l` double DEFAULT NULL,
+  `c` double DEFAULT NULL,
+  `sym` varchar(50) DEFAULT NULL,
   `EMA12` double DEFAULT NULL,
   `EMA26` double DEFAULT NULL,
   `MACD` double DEFAULT NULL,
   `Sig9` double DEFAULT NULL,
   `Diff` double DEFAULT NULL,
   `RSI` double DEFAULT NULL,
+  `BBandUp` double DEFAULT NULL,
+  `BBandDown` double DEFAULT NULL,
+  `BBandBasis` double DEFAULT NULL,
+  `TR` double DEFAULT NULL,
   `ATR` double DEFAULT NULL,
   `RSIOVERLINE` double DEFAULT NULL,
+  `TR14` double DEFAULT NULL,
+  `PDMI14` double DEFAULT NULL,
+  `NDMI14` double DEFAULT NULL,
   `PDI14` double DEFAULT NULL,
   `NDI14` double DEFAULT NULL,
   `DI14Diff` double DEFAULT NULL,
   `DI14Sum` double DEFAULT NULL,
   `DX` double DEFAULT NULL,
   `ADX` double DEFAULT NULL,
-  UNIQUE KEY `date` (`d`),
-  KEY `ticker` (`n`,`d`)
+  KEY `ticker` (`sym`,`s`) USING BTREE,
+  KEY `date` (`s`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
--- Dumping data for table networkeasy.currentdaycalc: ~0 rows (approximately)
+-- Dumping data for table networkeasy.currentdaycalc: ~1,561 rows (approximately)
 /*!40000 ALTER TABLE `currentdaycalc` DISABLE KEYS */;
 /*!40000 ALTER TABLE `currentdaycalc` ENABLE KEYS */;
 
 -- Dumping structure for table networkeasy.currentdayraw
 CREATE TABLE IF NOT EXISTS `currentdayraw` (
-  `d` date DEFAULT NULL,
+  `s` datetime DEFAULT NULL,
   `o` double DEFAULT NULL,
   `h` double DEFAULT NULL,
   `l` double DEFAULT NULL,
   `c` double DEFAULT NULL,
-  `n` varchar(50) DEFAULT NULL,
-  UNIQUE KEY `date` (`d`),
-  KEY `name` (`n`)
+  `sym` varchar(50) DEFAULT NULL,
+  KEY `name` (`sym`) USING BTREE,
+  KEY `date` (`s`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
--- Dumping data for table networkeasy.currentdayraw: ~0 rows (approximately)
+-- Dumping data for table networkeasy.currentdayraw: ~1,561 rows (approximately)
 /*!40000 ALTER TABLE `currentdayraw` DISABLE KEYS */;
+INSERT INTO `currentdayraw` (`s`, `o`, `h`, `l`, `c`, `sym`) VALUES
+	('2021-01-22 21:00:01', 47.43, 47.43, 47.43, 47.43, 'XOM'),
+	('2021-01-22 21:00:02', 47.43, 47.43, 47.43, 47.43, 'XOM'),
+	('2021-01-22 21:00:07', 47.43, 47.43, 47.43, 47.43, 'XOM'),
+	('2021-01-22 21:00:11', 47.43, 47.43, 47.43, 47.43, 'XOM');
 /*!40000 ALTER TABLE `currentdayraw` ENABLE KEYS */;
 
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
