@@ -36,7 +36,6 @@ while True:
         pass
     macorwin = input("""Please try again.
 """)
-macorwin = 'w'
 
 
 if macorwin == 'w':
@@ -47,7 +46,7 @@ if macorwin == 'm':
 
 now = datetime.now()
 now = now.strftime("%m %d %Y")
-ticker = "XOM"
+ticker = "SEDG"
 rsi_period = 14
 
 
@@ -636,4 +635,3 @@ data = pd.DataFrame(data, columns=['s','o','h','l','c','sym','EMA12','EMA26','MA
 
 dataoutput = data.sort_values(by='s', ascending=True)
 dataoutput.to_csv(desktop + "/S1_Data.csv")
-exit()
