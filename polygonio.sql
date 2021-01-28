@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS `currentdaycalc` (
   KEY `date` (`s`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
--- Dumping data for table networkeasy.currentdaycalc: ~1,561 rows (approximately)
+-- Dumping data for table networkeasy.currentdaycalc: ~0 rows (approximately)
 /*!40000 ALTER TABLE `currentdaycalc` DISABLE KEYS */;
 /*!40000 ALTER TABLE `currentdaycalc` ENABLE KEYS */;
 
@@ -65,13 +65,8 @@ CREATE TABLE IF NOT EXISTS `currentdayraw` (
   KEY `date` (`s`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
--- Dumping data for table networkeasy.currentdayraw: ~1,561 rows (approximately)
+-- Dumping data for table networkeasy.currentdayraw: ~0 rows (approximately)
 /*!40000 ALTER TABLE `currentdayraw` DISABLE KEYS */;
-INSERT INTO `currentdayraw` (`s`, `o`, `h`, `l`, `c`, `sym`) VALUES
-	('2021-01-22 21:00:01', 47.43, 47.43, 47.43, 47.43, 'XOM'),
-	('2021-01-22 21:00:02', 47.43, 47.43, 47.43, 47.43, 'XOM'),
-	('2021-01-22 21:00:07', 47.43, 47.43, 47.43, 47.43, 'XOM'),
-	('2021-01-22 21:00:11', 47.43, 47.43, 47.43, 47.43, 'XOM');
 /*!40000 ALTER TABLE `currentdayraw` ENABLE KEYS */;
 
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
