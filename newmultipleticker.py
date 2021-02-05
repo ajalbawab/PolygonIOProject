@@ -46,7 +46,7 @@ if macorwin == 'm':
     desktop = os.path.join(os.path.join(os.path.expanduser('~')), 'Desktop') 
 now = datetime.now()
 now = now.strftime("%m %d %Y")
-ticker1 = "MSFT"
+ticker1 = "FB"
 ticker2 = "AAPL"
 rsi_period = 14
 howmanytickers = 2
@@ -211,7 +211,7 @@ def tradecalc1(lenofmessages, ticker):
         pass
 
 
-def tradecalc2(lenofmessages,newmessages):
+def tradecalc2(lenofmessages,ticker,newmessages):
     try:
         global conn
         conn = mariadb.connect(
@@ -225,7 +225,7 @@ def tradecalc2(lenofmessages,newmessages):
         print(f"Error connecting to MariaDB Platform: {e}")
         sys.exit(1)
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM currentdaycalc order by s DESC LIMIT {}".format((lenofmessages+29))) 
+    cursor.execute("SELECT * FROM currentdaycalc where sym ='{}'  order by s DESC LIMIT {}".format(ticker, lenofmessages+29))
     data = cursor.fetchall ()
     conn.close()
     df = pd.DataFrame(data,columns=['s', 'o', 'h', 'l', 'c', 'sym', 'EMA12', 'EMA26', 'MACD', 'Sig9',
@@ -234,6 +234,7 @@ def tradecalc2(lenofmessages,newmessages):
        'DI14Sum', 'DX', 'ADX']).sort_values(by='s', ascending=True)
     df = df.append(newmessages)
     df1 = df.reset_index(drop=True)
+    print(df1)
     yclose = df1['c'].shift(1)
     yhigh = df1['h'].shift(1)
     ylow = df1['l'].shift(1)
@@ -298,7 +299,7 @@ def tradecalc2(lenofmessages,newmessages):
         nowx = df1['DX'].iloc[i:i+1].values[0]
         nowtr = df1['DX'].iloc[i:i+1].values[0]
         df1.loc[i:i+1,'ADX'] = (((prevx*13) + nowtr) / 14)
-
+    print(df1)
     @event.listens_for(engine, "before_cursor_execute")
     def receive_before_cursor_execute(
         conn, cursor, statement, params, context, executemany
@@ -470,16 +471,8 @@ Initializing Done.. Now Calculating and Saving to Database
         xstop = 0
         print("Storing Stock Data.. Press \ To Cancel Loop")
         while min(len(df[df['sym']==ticker1]),len(df[df['sym']==ticker2])) > 28:
-        
-            # if msvcrt.kbhit():
-            #     if msvcrt.getwche() == '\\':
-            #         xstop = 1
-            # if xstop == 1:
-            #     break
-
             i = len(df)  # 29
             time.sleep(1)
-
             lastmessage = messages[2+int(howmanytickers)+i:]
 
 
@@ -488,18 +481,26 @@ Initializing Done.. Now Calculating and Saving to Database
                 newmessages = pd.DataFrame(lastmessage, columns=['data'])
                 newmessages = newmessages.iloc[0:, 0].to_frame()
                 newmessages = pd.json_normalize(newmessages["data"].astype("str").apply(lambda x : dict(eval(x))))
-                newmessages = newmessages[['s','o','h','l','c','sym']]
-                newmessages['s'] = pd.to_datetime(newmessages['s'], unit='ms')
-                lenofmessages = len(newmessages)
-                saveprecalctodb(newmessages)
-
-
-
-
-                process = threading.Thread(target=tradecalc2, args=[lenofmessages, newmessages])
+                try:
+                    df1 = df1[['s','o','h','l','c','sym']]
+                    df1['s'] = pd.to_datetime(df1['s'], unit='ms')
+                    saveprecalctodb(df1)
+                except:
+                    pass
+                df = df.append(df1)
+                newmessages1 = df1[df1['sym']==ticker1]
+                newmessages2 = df1[df1['sym']==ticker2]
+                lenofmessages1 = len(newmessages1)
+                lenofmessages2 = len(newmessages2)
+                process = threading.Thread(target=tradecalc2, args=[lenofmessages1, ticker1, newmessages1])
                 process.start()
                 threads.append(process)
                 process.join()
+                process = threading.Thread(target=tradecalc2, args=[lenofmessages2, ticker2, newmessages2])
+                process.start()
+                threads.append(process)
+                process.join()
+
 
                 df = df.append(newmessages)
             else:
