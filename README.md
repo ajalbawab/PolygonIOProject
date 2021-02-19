@@ -17,4 +17,4 @@ APIKey=
 
 Then hit go!
 
-Blessed
+Cheers!
