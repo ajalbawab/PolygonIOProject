@@ -7,17 +7,12 @@ Bring in the .sql file into your local MariaDB server.
 
 The .env file should look like this:
 
-DB_USER=
-
-DB_PASSWORD=
-
-DB_HOST=
-
-DB_PORT=
-
-DB_DB=
-
-APIKey=
+DB_USER= 
+DB_PASSWORD= 
+DB_HOST= 
+DB_PORT= 
+DB_DB= 
+APIKey= 
 
 
 Then hit go!
