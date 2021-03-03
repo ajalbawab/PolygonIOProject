@@ -26,16 +26,16 @@ load_dotenv()
 
 
 
-# macorwin = input("""Are you on Mac or Windows? Reply (M/W)?
-# """)
-# while True:
+macorwin = input("""Are you on Mac or Windows? Reply (M/W)?
+""")
+while True:
     
-#     if macorwin.lower() == 'm' or macorwin.lower() == 'w':
-#        break
-#     else:
-#         pass
-#     macorwin = input("""Please try again.
-# """)
+    if macorwin.lower() == 'm' or macorwin.lower() == 'w':
+       break
+    else:
+        pass
+    macorwin = input("""Please try again.
+""")
 
 macorwin = 'w'
 
